@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Hoje{% endblock %}
+{% block content %}
+<h1>Hoje <span class="muted">{{ now.strftime('%d/%m/%Y') }}</span></h1>
+
+<section class="card">
+  <h2>Pendências</h2>
+  {% if pending %}
+  <ul class="list">
+    {% for o in pending %}
+    {% set due = to_local(o.due_at) %}
+    <li class="row {% if due < now %}late{% endif %}">
+      <div>
+        <span class="tag {{ o.kind }}">{{ kinds[o.kind] }}</span>
+        <strong>{{ o.title }}</strong>{% if o.amount_cents is not none %} · {{ brl(o.amount_cents) }}{% endif %}
+        <div class="muted small">{{ when(due) }} · #{{ o.id }} · {{ o.reminder_count }} aviso(s){% if o.snoozed_until %} · adiado até {{ to_local(o.snoozed_until).strftime('%H:%M') }}{% endif %}</div>
+      </div>
+      <div class="actions">
+        {% for action, label in [('feito', 'Feito'), ('adiar', 'Adiar 1 h'), ('pular', 'Pular')] %}
+        <form method="post" action="{{ url_for('occurrence_action', occ_id=o.id, action=action) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <button class="{{ 'primary' if action == 'feito' else '' }}">{{ label }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nada pendente.</p>
+  {% endif %}
+</section>
+
+<div class="grid">
+  <section class="card">
+    <h2>Próximos 7 dias</h2>
+    {% if upcoming %}
+    <ul class="list compact">
+      {% for e in upcoming %}
+      <li><span class="mono">{{ e.due.strftime('%d/%m %H:%M') }}</span> <span class="tag {{ e.item.kind }}">{{ kinds[e.item.kind] }}</span> {{ e.item.title }}{% if e.item.amount_cents is not none %} · {{ brl(e.item.amount_cents) }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Nada marcado. <a href="{{ url_for('agenda_page') }}">Cadastrar</a></p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Gastos do mês</h2>
+    <p class="big mono">{{ brl(summary.spent) }}</p>
+    <p class="muted small">Entradas {{ brl(summary.income) }}{% if summary.uncategorized %} · <a href="{{ url_for('spending', filtro='sem') }}">{{ summary.uncategorized }} sem categoria</a>{% endif %}</p>
+    <ul class="list compact">
+      {% for c in summary.categories[:6] %}
+      <li class="bar-row {% if c.over %}over{% endif %}">
+        <span>{{ c.name }}</span><span class="mono">{{ brl(c.spent) }}{% if c.limit %} / {{ brl(c.limit) }}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

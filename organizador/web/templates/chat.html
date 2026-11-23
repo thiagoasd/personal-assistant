@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Conversa{% endblock %}
+{% block content %}
+<h1>Conversa</h1>
+<p class="muted small">
+  WhatsApp: {{ 'recebendo mensagens pelo webhook' if webhook_enabled else 'webhook desligado (defina WEBHOOK_SECRET e EVOLUTION_TO)' }} ·
+  IA: {{ 'Claude ligado' if claude_enabled else 'desligada, só comandos simples (defina ANTHROPIC_API_KEY)' }}
+</p>
+
+<section class="card">
+  <h2>Testar sem WhatsApp</h2>
+  <form method="post" action="{{ url_for('chat_test') }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <input name="texto" placeholder="ex.: paguei a luz · adia meia hora · me lembra amanhã às 9 do dentista" size="60" required>
+    <button class="primary">Enviar</button>
+  </form>
+  <p class="muted small">A resposta também é enviada para o seu WhatsApp quando o envio estiver ligado.</p>
+</section>
+
+{% if problems %}
+<section class="card">
+  <h2>Mensagens com problema</h2>
+  <ul class="list compact">
+    {% for p in problems %}<li><span class="mono small">{{ to_local(p.received_at).strftime('%d/%m %H:%M') }}</span> “{{ p.text }}” — {{ p.error }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Histórico</h2>
+  <ol class="chat">
+    {% for m in log %}
+    <li class="bubble {{ m.role }}"><span class="muted small mono">{{ to_local(m.at).strftime('%d/%m %H:%M') }}</span><div>{{ m.text }}</div></li>
+    {% else %}
+    <li class="muted">Nenhuma mensagem ainda.</li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

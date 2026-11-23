@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Gastos{% endblock %}
+{% block content %}
+<h1>Gastos
+  <span class="month-nav">
+    <a href="{{ url_for('spending', mes=prev) }}" aria-label="Mês anterior">‹</a>
+    <span class="mono">{{ month[5:] }}/{{ month[:4] }}</span>
+    <a href="{{ url_for('spending', mes=next) }}" aria-label="Próximo mês">›</a>
+  </span>
+</h1>
+
+<div class="grid">
+  <section class="card">
+    <h2>Total gasto</h2>
+    <p class="big mono">{{ brl(summary.spent) }}</p>
+    <p class="muted small">Entradas {{ brl(summary.income) }}. Pagamento de fatura e transferências entre contas não entram, para não contar duas vezes.</p>
+  </section>
+  <section class="card">
+    <h2>Por categoria</h2>
+    {% set top = summary.categories[0].spent if summary.categories else 1 %}
+    <ul class="list compact">
+      {% for c in summary.categories %}
+      <li class="bar-row {% if c.over %}over{% endif %}">
+        <a href="{{ url_for('spending', mes=month, filtro=c.id if c.id else 'sem') }}">{{ c.name }}</a>
+        <span class="mono">{{ brl(c.spent) }}{% if c.limit %} / {{ brl(c.limit) }}{% endif %}</span>
+        <span class="bar" style="--w: {{ (c.spent * 100 // top) if top else 0 }}%"></span>
+      </li>
+      {% else %}
+      <li class="muted">Nenhum gasto importado neste mês.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Lançamentos {% if filtro %}<a class="small" href="{{ url_for('spending', mes=month) }}">limpar filtro</a>{% endif %}</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Data</th><th>Descrição</th><th>Conta</th><th class="num">Valor</th><th>Categoria</th></tr></thead>
+    <tbody>
+    {% for t in rows %}
+    <tr>
+      <td class="mono">{{ t.date[8:] }}/{{ t.date[5:7] }}</td>
+      <td>{{ t.description }}{% if t.pending %} <span class="tag">pendente</span>{% endif %}</td>
+      <td class="small">{{ t.account }}</td>
+      <td class="num mono {{ 'in' if t.amount_cents > 0 else '' }}">{{ brl(t.amount_cents) }}</td>
+      <td>
+        <form method="post" action="{{ url_for('spending_category', tx_id=t.id) }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <input type="hidden" name="voltar" value="{{ request.full_path }}">
+          <select name="categoria" aria-label="Categoria">
+            <option value="">Sem categoria</option>
+            {% for c in categories %}<option value="{{ c.id }}" {% if c.id == t.category_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+          </select>
+          <input name="regra" placeholder="sempre que contiver…" aria-label="Criar regra com este texto" size="14">
+          <button>Salvar</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Nada aqui. Conecte uma conta em <a href="{{ url_for('accounts_page') }}">Contas</a>.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

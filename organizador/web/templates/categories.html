@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Categorias{% endblock %}
+{% block content %}
+<h1>Categorias e regras</h1>
+<div class="grid">
+<section class="card">
+  <h2>Categorias</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Nome</th><th>Limite mensal</th><th>Fora dos totais</th><th></th></tr></thead>
+    <tbody>
+    {% for c in categories %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td colspan="3">
+        <form method="post" action="{{ url_for('category_update', cat_id=c.id) }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <input name="limite" value="{{ brl(c.monthly_limit_cents)[3:] if c.monthly_limit_cents else '' }}" placeholder="sem limite" size="9" aria-label="Limite de {{ c.name }}">
+          <label class="check"><input type="checkbox" name="ignorar" {% if c.ignore_in_totals %}checked{% endif %}> não somar</label>
+          <button>Salvar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <form method="post" action="{{ url_for('category_new') }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <input name="nome" placeholder="Nova categoria" maxlength="60" required>
+    <button>Adicionar</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Regras</h2>
+  <p class="muted small">Lançamento cuja descrição contém o texto recebe a categoria. A regra mais longa vence. Categoria escolhida à mão nunca é trocada.</p>
+  <form method="post" action="{{ url_for('rule_new') }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <input name="texto" placeholder="ex.: ifood" required>
+    <select name="categoria">{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+    <button>Criar regra</button>
+  </form>
+  <ul class="list compact">
+    {% for r in rules %}
+    <li class="row">
+      <span><span class="mono">{{ r.pattern }}</span> → {{ r.category }}</span>
+      <form method="post" action="{{ url_for('rule_delete', rule_id=r.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf }}"><button class="link">remover</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+</div>
+{% endblock %}

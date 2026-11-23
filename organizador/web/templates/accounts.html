@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Contas{% endblock %}
+{% block content %}
+<h1>Contas</h1>
+{% if not pluggy_enabled %}
+<p class="flash error">Pluggy desligado: defina PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET da conta Pluggy nova.</p>
+{% endif %}
+
+<section class="card">
+  <h2>Conexões Pluggy</h2>
+  <p class="muted small">Crie a conexão do banco no painel do Pluggy e cole aqui o identificador do item. O organizador só lê: nunca inicia pagamento nem transferência. Leitura automática a cada 6 h.</p>
+  <ul class="list compact">
+    {% for i in items %}
+    <li>
+      <strong>{{ i.label }}</strong> <span class="muted small mono">{{ i.item_id[:8] }}…</span>
+      · {{ i.status or 'ainda não lida' }}
+      {% if i.last_sync_at %} · lida {{ to_local(i.last_sync_at).strftime('%d/%m %H:%M') }}{% endif %}
+      {% if i.last_error %}<div class="flash error small">{{ i.last_error }}</div>{% endif %}
+    </li>
+    {% else %}
+    <li class="muted">Nenhuma conexão.</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ url_for('account_new') }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <input name="nome" placeholder="Nome (ex.: Nubank)" maxlength="60">
+    <input name="item_id" placeholder="item id do Pluggy" size="38" required>
+    <button>Adicionar</button>
+  </form>
+  <form method="post" action="{{ url_for('account_sync') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf }}"><button {% if not pluggy_enabled %}disabled{% endif %}>Ler agora</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Contas lidas</h2>
+  <ul class="list compact">
+    {% for a in accounts %}
+    <li class="row"><span>{{ a.name }} <span class="tag">{{ 'cartão' if a.kind == 'card' else 'conta' }}</span></span>
+      <span class="mono">{% if a.balance_cents is not none %}{{ brl(a.balance_cents) }}{% endif %}{% if a.last_ok_at %} <span class="muted small">em {{ to_local(a.last_ok_at).strftime('%d/%m %H:%M') }}</span>{% endif %}</span></li>
+    {% else %}
+    <li class="muted">Nenhuma conta lida ainda.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
