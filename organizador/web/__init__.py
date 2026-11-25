@@ -130,13 +130,15 @@ def create_app(config: Config) -> Flask:
             log.warning("Webhook chamado com segredo diferente de WEBHOOK_SECRET; ignorado.")
             return {"ok": True}
         payload = request.get_json(silent=True) or {}
-        messages = whatsapp.owner_messages(payload, config.evolution_to)
+        discarded: list[str] = []
+        messages = whatsapp.owner_messages(payload, config.evolution_to, discarded)
         stored = whatsapp.store(get_db(), messages) if messages else 0
         data = payload.get("data") if isinstance(payload, dict) else None
         total = len(data) if isinstance(data, list) else int(isinstance(data, dict))
-        log.info("Webhook: evento %s, %d mensagem(ns), %d sua(s), %d nova(s).",
+        log.info("Webhook: evento %s, %d mensagem(ns), %d sua(s), %d nova(s).%s",
                  (payload.get("event") if isinstance(payload, dict) else None) or "?",
-                 total, len(messages), stored)
+                 total, len(messages), stored,
+                 f" Descartadas: {'; '.join(discarded)}." if discarded else "")
         return {"ok": True}
 
     # ---------- hoje ----------

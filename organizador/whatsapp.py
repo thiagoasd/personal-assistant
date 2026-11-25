@@ -51,8 +51,13 @@ def _quoted_ref(entry: dict) -> int | None:
     return int(refs.pop()) if len(refs) == 1 else None
 
 
-def owner_messages(payload: dict, owner: str) -> list[tuple[str, str]]:
-    """(id da mensagem, texto) das mensagens do dono neste evento. Aceita objeto ou lista em `data`."""
+def owner_messages(payload: dict, owner: str, discarded: list[str] | None = None) -> list[tuple[str, str]]:
+    """(id da mensagem, texto) das mensagens do dono neste evento. Aceita objeto ou lista em `data`.
+
+    Se `discarded` for uma lista, recebe o motivo de cada mensagem descartada (sem números nem
+    texto), para o log mostrar por que nada foi aceito.
+    """
+    note = discarded.append if discarded is not None else (lambda _: None)
     if not isinstance(payload, dict) or not owner:
         return []
     event = str(payload.get("event", "")).lower().replace("_", ".")
@@ -66,13 +71,21 @@ def owner_messages(payload: dict, owner: str) -> list[tuple[str, str]]:
             continue
         key = entry.get("key") or {}
         if key.get("fromMe"):
+            note("enviada pelo próprio número da instância")
             continue
         jid = str(key.get("remoteJid") or "")
         if jid.endswith("@g.us") or jid.endswith("@broadcast") or jid.endswith("@newsletter"):
+            note("grupo ou lista")
             continue
         # Com o identificador @lid, o número real vem em remoteJidAlt/senderPn.
         candidates = [jid, key.get("remoteJidAlt"), key.get("senderPn"), entry.get("senderPn")]
-        if not any(same_phone(c or "", owner) for c in candidates if c and "@lid" not in str(c)):
+        phones = [c for c in candidates if c and "@lid" not in str(c)]
+        if not phones:
+            fields = ", ".join(sorted(k for k in key if k not in ("id", "fromMe"))) or "nenhum"
+            note(f"identificador @lid sem número de telefone (campos em key: {fields})")
+            continue
+        if not any(same_phone(c, owner) for c in phones):
+            note("outro número (cliente ou EVOLUTION_TO diferente)")
             continue
         text = _text(entry.get("message") or {}).strip()[:2000]
         message_id = str(key.get("id") or "")
@@ -81,6 +94,8 @@ def owner_messages(payload: dict, owner: str) -> list[tuple[str, str]]:
             text = f"{text} {QUOTE_MARK.format(ref=ref)}"
         if text and message_id:
             found.append((message_id, text))
+        else:
+            note("sua, mas sem texto (áudio, foto, figurinha…)")
     return found
 
 

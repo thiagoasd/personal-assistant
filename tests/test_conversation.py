@@ -34,6 +34,21 @@ class WhatsAppParseTest(unittest.TestCase):
         self.assertEqual(whatsapp.owner_messages(upsert(f"{OWNER}@s.whatsapp.net", "oi", from_me=True), OWNER), [])
         self.assertEqual(whatsapp.owner_messages({"event": "connection.update"}, OWNER), [])
 
+    def test_discard_reasons_without_numbers(self):
+        cases = [
+            (upsert("5511900000000@s.whatsapp.net", "oi"), "outro número"),
+            (upsert("1203630@g.us", "oi"), "grupo"),
+            (upsert(f"{OWNER}@s.whatsapp.net", "oi", from_me=True), "próprio número"),
+            (upsert("123456789@lid", "oi", participant="987@lid"), "campos em key: participant, remoteJid"),
+            (upsert(f"{OWNER}@s.whatsapp.net", ""), "sem texto"),
+        ]
+        for payload, expected in cases:
+            reasons = []
+            self.assertEqual(whatsapp.owner_messages(payload, OWNER, reasons), [])
+            self.assertEqual(len(reasons), 1, expected)
+            self.assertIn(expected, reasons[0])
+            self.assertNotRegex(reasons[0], r"\d{3}")
+
 
 class SimpleCommandsTest(unittest.TestCase):
     def setUp(self):
