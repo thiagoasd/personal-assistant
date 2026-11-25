@@ -92,10 +92,16 @@ class WebTest(unittest.TestCase):
     def test_webhook_filters_and_always_200(self):
         payload = {"event": "messages.upsert", "data": {"key": {"remoteJid": "5511987654321@s.whatsapp.net",
                    "fromMe": False, "id": "X"}, "message": {"conversation": "tomei"}}}
-        self.assertEqual(self.client.post("/webhook/evolution/errado", json=payload).status_code, 200)
         stranger = {**payload, "data": {**payload["data"], "key": {**payload["data"]["key"], "remoteJid": "5511900000000@s.whatsapp.net", "id": "Y"}}}
-        self.client.post("/webhook/evolution/abc", json=stranger)
-        self.client.post("/webhook/evolution/abc", json=payload)
+        with self.assertLogs("organizador.web", "INFO") as logs:
+            self.assertEqual(self.client.post("/webhook/evolution/errado", json=payload).status_code, 200)
+            self.client.post("/webhook/evolution/abc", json=stranger)
+            self.client.post("/webhook/evolution/abc", json=payload)
+        self.assertIn("segredo diferente", logs.output[0])
+        self.assertIn("1 mensagem(ns), 0 sua(s)", logs.output[1])
+        self.assertIn("1 sua(s), 1 nova(s)", logs.output[2])
+        self.assertNotIn("5511", "".join(logs.output))
+        self.assertNotIn("tomei", "".join(logs.output))
         conn = connect(self.db)
         self.addCleanup(conn.close)
         self.assertEqual([r[0] for r in conn.execute("SELECT message_id FROM inbox")], ["X"])

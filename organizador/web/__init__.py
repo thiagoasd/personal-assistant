@@ -122,12 +122,21 @@ def create_app(config: Config) -> Flask:
     @app.post("/webhook/evolution/<secret>")
     def webhook(secret):
         """Sempre 200 para a Evolution; só grava mensagens privadas de texto do dono."""
-        if not config.webhook_enabled or not hmac.compare_digest(secret, config.webhook_secret):
+        # Uma linha por chamada, sem texto nem números, para saber se a Evolution está chamando.
+        if not config.webhook_enabled:
+            log.warning("Webhook chamado, mas desligado: falta WEBHOOK_SECRET ou EVOLUTION_TO.")
+            return {"ok": True}
+        if not hmac.compare_digest(secret, config.webhook_secret):
+            log.warning("Webhook chamado com segredo diferente de WEBHOOK_SECRET; ignorado.")
             return {"ok": True}
         payload = request.get_json(silent=True) or {}
         messages = whatsapp.owner_messages(payload, config.evolution_to)
-        if messages:
-            whatsapp.store(get_db(), messages)
+        stored = whatsapp.store(get_db(), messages) if messages else 0
+        data = payload.get("data") if isinstance(payload, dict) else None
+        total = len(data) if isinstance(data, list) else int(isinstance(data, dict))
+        log.info("Webhook: evento %s, %d mensagem(ns), %d sua(s), %d nova(s).",
+                 (payload.get("event") if isinstance(payload, dict) else None) or "?",
+                 total, len(messages), stored)
         return {"ok": True}
 
     # ---------- hoje ----------
