@@ -63,6 +63,27 @@ class MaterializeTest(unittest.TestCase):
         self.assertEqual(agenda.repeat_text("month", 2, 5), "a cada 2 meses, no dia 5")
         self.assertEqual(agenda.repeat_text("hour", 8), "a cada 8 hora(s)")
 
+    def test_month_calendar_mixes_history_and_projection(self):
+        now = at(25, 10)
+        agenda.create_item(self.conn, kind="remedio", title="Vitamina", due_local=at(3, 8))
+        agenda.materialize(self.conn, at(3, 8))
+        occ = agenda.pending(self.conn)[0]["id"]
+        agenda.mark_done(self.conn, occ)
+        agenda.create_item(self.conn, kind="conta", title="Água", due_local=at(10), rec_unit="month", now=now)
+
+        def entries(weeks):
+            return {(d["date"].day, d["date"].month, e["title"], e["status"])
+                    for w in weeks for d in w for e in d["entries"]}
+
+        nov = agenda.month_calendar(self.conn, 2026, 11, now)
+        self.assertEqual(nov[0][0]["date"].weekday(), 0)  # começa na segunda
+        self.assertTrue(all(len(w) == 7 for w in nov))
+        self.assertEqual(entries(nov), {(3, 11, "Vitamina", "feito")})
+        self.assertEqual([d["date"].day for w in nov for d in w if d["today"]], [25])
+        dec = agenda.month_calendar(self.conn, 2026, 12, now)
+        self.assertEqual(entries(dec), {(10, 12, "Água", "previsto")})
+        self.assertIn((10, 3, "Água", "previsto"), entries(agenda.month_calendar(self.conn, 2027, 3, now)))
+
     def test_single_item_ends(self):
         item = agenda.create_item(self.conn, kind="compromisso", title="Dentista", due_local=at(3, 15))
         agenda.materialize(self.conn, at(3, 14))

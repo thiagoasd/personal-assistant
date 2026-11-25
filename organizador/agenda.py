@@ -274,6 +274,52 @@ def upcoming(conn: sqlite3.Connection, now: datetime, days: int) -> list[dict]:
     return result
 
 
+def month_calendar(conn: sqlite3.Connection, year: int, month: int, now: datetime) -> list[list[dict]]:
+    """Semanas (segunda a domingo) do mês, cada dia com o que tem nele.
+
+    Junta o que já virou ocorrência (feito, pulado, pendente) com a projeção dos itens ativos
+    a partir da próxima vez de cada um. Não grava nada.
+    """
+    first = datetime(year, month, 1, tzinfo=TZ)
+    after = add_months(first, 1)
+    start = first - timedelta(days=first.weekday())
+    end = after + timedelta(days=(7 - after.weekday()) % 7)
+    by_day: dict = {}
+
+    def add(due: datetime, row, status: str, occurrence: int | None = None) -> None:
+        by_day.setdefault(due.date(), []).append({
+            "time": due.strftime("%H:%M"), "title": row["title"], "kind": row["kind"],
+            "amount": row["amount_cents"], "status": status, "occurrence": occurrence,
+            "item": row["item_id"] if "item_id" in row.keys() else row["id"],
+        })
+
+    lo, hi = iso(start), iso(end)
+    for row in conn.execute(
+        "SELECT o.id AS occ_id, o.item_id, o.due_at, o.status, i.title, i.kind, i.amount_cents "
+        "FROM occurrences o JOIN items i ON i.id = o.item_id WHERE o.due_at >= ? AND o.due_at < ?", (lo, hi)
+    ):
+        add(to_local(row["due_at"]), row, row["status"], row["occ_id"])
+    for item in conn.execute("SELECT * FROM items WHERE active = 1 AND due_at IS NOT NULL"):
+        due, count = to_local(item["due_at"]), 0
+        while due is not None and due < end and count < 400:
+            if due >= start:
+                add(due, item, "previsto")
+            due = next_due(due, item["rec_unit"], item["rec_every"], item["rec_anchor_day"])
+            count += 1
+
+    today = now.astimezone(TZ).date()
+    weeks, day = [], start
+    while day < end:
+        week = []
+        for _ in range(7):
+            entries = sorted(by_day.get(day.date(), []), key=lambda e: (e["time"], e["title"]))
+            week.append({"date": day.date(), "in_month": day.month == month,
+                         "today": day.date() == today, "entries": entries})
+            day += timedelta(days=1)
+        weeks.append(week)
+    return weeks
+
+
 def brl(cents: int | None) -> str:
     if cents is None:
         return ""

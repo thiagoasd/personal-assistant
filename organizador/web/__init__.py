@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 LOGIN_LIMIT = 5
 LOGIN_WINDOW = 15 * 60
 PUBLIC = {"login", "health", "webhook", "static"}
+MONTHS = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro",
+          "outubro", "novembro", "dezembro")
 
 
 def parse_money(raw: str) -> int | None:
@@ -181,9 +183,27 @@ def create_app(config: Config) -> Flask:
             "SELECT o.*, i.title, i.kind FROM occurrences o JOIN items i ON i.id = o.item_id "
             "WHERE o.status != 'pendente' ORDER BY o.done_at DESC LIMIT 30"
         ).fetchall()
-        default_day = (datetime.now(TZ) + timedelta(days=1)).strftime("%Y-%m-%d")
-        return render_template("agenda.html", items=items, history=history, default_day=default_day,
-                               rhythms=agenda.DEFAULT_RHYTHM)
+        now = datetime.now(TZ)
+        try:
+            shown = datetime.strptime(request.args.get("mes", ""), "%Y-%m").replace(tzinfo=TZ)
+            if not 2000 <= shown.year <= 2100:
+                raise ValueError
+        except ValueError:
+            shown = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        try:
+            picked = datetime.strptime(request.args.get("dia", ""), "%Y-%m-%d")
+            default_day = picked.strftime("%Y-%m-%d")
+        except ValueError:
+            default_day = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        return render_template(
+            "agenda.html", items=items, history=history, default_day=default_day,
+            rhythms=agenda.DEFAULT_RHYTHM,
+            weeks=agenda.month_calendar(conn, shown.year, shown.month, now),
+            shown=shown, month_name=MONTHS[shown.month - 1],
+            prev_month=agenda.add_months(shown, -1).strftime("%Y-%m"),
+            next_month=agenda.add_months(shown, 1).strftime("%Y-%m"),
+            this_month=now.strftime("%Y-%m"),
+        )
 
     @app.post("/agenda/novo")
     def agenda_new():

@@ -108,3 +108,47 @@ tr.off { opacity: .5; }
   h1 { font-size: 24px; }
   .bubble { max-width: 95%; }
 }
+
+/* Calendário da agenda */
+a.button { display: inline-block; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; }
+a.button:hover { border-color: var(--accent); }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cal-head h2 { margin: 0; }
+.cal-nav { display: flex; gap: 6px; }
+.calendar { table-layout: fixed; margin-top: 12px; }
+.calendar th { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; padding: 4px; text-align: left; }
+.calendar td { vertical-align: top; height: 92px; padding: 4px; border: 1px solid var(--line); overflow: hidden; }
+.calendar td.out { background: var(--page); }
+.calendar td.out .cal-day { color: var(--muted); }
+.calendar td.today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-day { display: inline-block; min-width: 24px; font-family: var(--mono); font-size: 13px; color: var(--ink); text-decoration: none; border-radius: 6px; padding: 0 4px; }
+.cal-day:hover { background: var(--accent-soft); color: var(--accent); }
+.today .cal-day { background: var(--accent); color: var(--accent-ink); }
+.cal-entries { list-style: none; margin: 2px 0 0; padding: 0; }
+.cal-entry { display: flex; align-items: baseline; gap: 4px; font-size: 12px; line-height: 1.35; }
+.cal-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transform: translateY(-1px); }
+.cal-entry.conta .cal-dot { background: var(--conta); }
+.cal-entry.remedio .cal-dot { background: var(--remedio); }
+.cal-entry.compromisso .cal-dot { background: var(--compromisso); }
+.cal-entry.tarefa .cal-dot { background: var(--tarefa); }
+.cal-entry.feito .cal-text, .cal-list .cal-entry.feito { text-decoration: line-through; color: var(--muted); }
+.cal-entry.pulado { color: var(--muted); }
+.cal-entry.pendente { color: var(--late); font-weight: 600; }
+.late-text { color: var(--late); }
+.cal-legend { margin: 10px 0 0; }
+.cal-list { display: none; margin-top: 12px; }
+.cal-list .cal-entry { font-size: 14px; margin-top: 2px; }
+@media (max-width: 640px) {
+  .calendar td { height: 58px; padding: 2px; }
+  .calendar th { font-size: 11px; padding: 2px; }
+  .cal-text { display: none; }
+  .cal-entries { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .cal-list { display: block; }
+}
+.cal-filters { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.cal-filters button.tag { cursor: pointer; background: var(--surface); font: inherit; font-size: 12px; margin: 0; padding: 2px 10px; min-height: 28px; }
+.cal-filters button.tag:hover { background: var(--accent-soft); }
+.cal-filters button.tag[aria-pressed="false"] { color: var(--muted); border-color: var(--line); border-style: dashed; text-decoration: line-through; }
+.hide-conta .cal-entry.conta, .hide-remedio .cal-entry.remedio,
+.hide-compromisso .cal-entry.compromisso, .hide-tarefa .cal-entry.tarefa { display: none; }

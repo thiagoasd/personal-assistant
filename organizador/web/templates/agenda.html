@@ -3,7 +3,60 @@
 {% block content %}
 <h1>Agenda</h1>
 
+{% set status_label = {'feito': 'feito', 'pulado': 'pulado', 'pendente': 'pendente', 'previsto': 'previsto'} %}
 <section class="card">
+  <div class="cal-head">
+    <h2>{{ month_name|capitalize }} de {{ shown.year }}</h2>
+    <nav class="cal-nav" aria-label="Mudar de mês">
+      <a class="button" href="{{ url_for('agenda_page', mes=prev_month) }}" aria-label="Mês anterior">‹</a>
+      {% if shown.strftime('%Y-%m') != this_month %}<a class="button" href="{{ url_for('agenda_page') }}">Hoje</a>{% endif %}
+      <a class="button" href="{{ url_for('agenda_page', mes=next_month) }}" aria-label="Próximo mês">›</a>
+    </nav>
+  </div>
+  <table class="calendar">
+    <thead><tr>{% for d in ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'] %}<th scope="col">{{ d }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for week in weeks %}
+    <tr>
+      {% for day in week %}
+      <td class="{{ '' if day.in_month else 'out' }}{{ ' today' if day.today }}">
+        <a class="cal-day" href="{{ url_for('agenda_page', mes=shown.strftime('%Y-%m'), dia=day.date.isoformat()) }}#novo"
+           title="Novo lembrete em {{ day.date.strftime('%d/%m') }}">{{ day.date.day }}</a>
+        {% if day.entries %}
+        <ul class="cal-entries">
+          {% for e in day.entries %}
+          <li class="cal-entry {{ e.kind }} {{ e.status }}" title="{{ e.time }} {{ e.title }}{% if e.amount %} · {{ brl(e.amount) }}{% endif %} · {{ status_label[e.status] }}">
+            <span class="cal-dot" aria-hidden="true"></span><span class="cal-text"><span class="mono">{{ e.time }}</span> {{ e.title }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="cal-legend muted small">
+    <span class="cal-filters" role="group" aria-label="Mostrar no calendário">
+      {% for key, label in kinds.items() %}<button type="button" class="tag {{ key }}" data-kind="{{ key }}" aria-pressed="true" title="Mostrar ou esconder: {{ label }}">{{ label }}</button>{% endfor %}
+    </span>
+    · <s>riscado</s> feito · <span class="late-text">vermelho</span> pendente · clique num tipo para esconder ou mostrar · clique num dia para criar um lembrete nele
+  </p>
+  <ul class="cal-list list compact">
+    {% set ns = namespace(any=false) %}
+    {% for week in weeks %}{% for day in week if day.in_month and day.entries %}{% set ns.any = true %}
+    <li><strong class="mono">{{ day.date.strftime('%d/%m') }}</strong>
+      {% for e in day.entries %}<div class="cal-entry {{ e.kind }} {{ e.status }}"><span class="cal-dot" aria-hidden="true"></span><span class="mono">{{ e.time }}</span> {{ e.title }}{% if e.amount %} · {{ brl(e.amount) }}{% endif %} <span class="muted small">{{ status_label[e.status] }}</span></div>{% endfor %}
+    </li>
+    {% endfor %}{% endfor %}
+    {% if not ns.any %}<li class="muted">Nada neste mês.</li>{% endif %}
+    <li class="muted cal-all-hidden" hidden>Todos os itens deste mês estão escondidos pelos filtros.</li>
+  </ul>
+</section>
+<script src="{{ url_for('static', filename='agenda.js') }}" defer></script>
+
+<section class="card" id="novo">
   <h2>Novo lembrete</h2>
   <form method="post" action="{{ url_for('agenda_new') }}" class="form-grid">
     <input type="hidden" name="_csrf" value="{{ csrf }}">
