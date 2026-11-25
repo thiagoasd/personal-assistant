@@ -81,6 +81,7 @@ def create_app(config: Config) -> Flask:
             "units": agenda.UNITS,
             "has_password": bool(config.app_password),
             "to_local": agenda.to_local,
+            "repeat_text": agenda.repeat_text,
         }
 
     # ---------- sessão ----------
@@ -211,6 +212,7 @@ def create_app(config: Config) -> Flask:
                 get_db(), kind=kind, title=form.get("titulo", ""), due_local=due.replace(tzinfo=TZ),
                 rec_unit=form.get("repetir", "none"), rec_every=int(form.get("a_cada") or 1),
                 amount_cents=parse_money(form.get("valor", "")), notes=form.get("obs", ""), rhythm=rhythm,
+                now=datetime.now(TZ),
             )
             flash("Lembrete criado.", "ok")
         except (agenda.AgendaError, ValueError) as exc:

@@ -32,6 +32,9 @@ perguntar. Se houver mais de uma possível, pergunte qual, citando os números. 
 - "Adia", "depois", "daqui a pouco" significam adiar. Sem tempo dito, adie 30 minutos.
 - Para criar lembrete, entenda tipo, nome, data, hora e repetição. Se faltar a data ou a hora e \
 não der para deduzir com segurança, pergunte antes de criar. Remédio sem hora não pode ser criado.
+- Conta em dia fixo ("água todo dia 10"): repetir month, a_cada 1, data = dia 10 deste mês (se \
+já passou, o sistema começa no mês seguinte). Conta sem hora dita: use 09:00 sem perguntar. Na \
+confirmação, diga a primeira data e a repetição devolvidas pela ferramenta.
 - Para desativar um lembrete, use listar_lembretes para achar o número do item e confirme o nome \
 na resposta. Desativar pode ser desfeito no painel.
 - Nunca invente pendências, valores ou gastos: use as ferramentas.
@@ -74,7 +77,7 @@ TOOLS = [
         "data": {"type": "string", "description": "AAAA-MM-DD, horário de Brasília."},
         "hora": {"type": "string", "description": "HH:MM, 24 h."},
         "repetir": {"type": "string", "enum": list(agenda.UNITS),
-                    "description": "none = não repete; hour/day/week/month/year."},
+                    "description": "none = não repete; hour/day/week/month/year. month repete todo mês no dia da data."},
         "a_cada": {"type": "integer", "description": "Intervalo da repetição (1 = toda vez). Use 1 se não repete."},
         "valor_centavos": {"type": "integer", "description": "Valor da conta em centavos; 0 se não houver."},
         "observacao": {"type": "string", "description": "Texto extra no aviso; vazio se não houver."},
@@ -121,15 +124,17 @@ def run_tool(conn: sqlite3.Connection, name: str, args: dict, now: datetime) -> 
         item_id = agenda.create_item(
             conn, kind=args["tipo"], title=args["titulo"], due_local=due, rec_unit=args["repetir"],
             rec_every=int(args.get("a_cada") or 1), amount_cents=amount,
-            notes=args.get("observacao", ""), source="whatsapp",
+            notes=args.get("observacao", ""), source="whatsapp", now=now,
         )
-        return {"item": item_id, "primeira_vez": due.strftime("%d/%m/%Y %H:%M")}
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        return {"item": item_id, "primeira_vez": agenda.to_local(row["due_at"]).strftime("%d/%m/%Y %H:%M"),
+                "repete": agenda.repeat_text(row["rec_unit"], row["rec_every"], row["rec_anchor_day"])}
     if name == "listar_lembretes":
         rows = conn.execute("SELECT * FROM items WHERE active = 1 ORDER BY due_at").fetchall()
         return {"itens": [{
             "item": r["id"], "tipo": agenda.KINDS[r["kind"]], "titulo": r["title"],
             "proxima_vez": agenda.to_local(r["due_at"]).strftime("%d/%m/%Y %H:%M"),
-            "repete": "não" if r["rec_unit"] == "none" else f"a cada {r['rec_every']} {agenda.UNITS[r['rec_unit']]}",
+            "repete": agenda.repeat_text(r["rec_unit"], r["rec_every"], r["rec_anchor_day"]),
         } for r in rows]}
     if name == "desativar_lembrete":
         row = conn.execute("SELECT title FROM items WHERE id = ?", (int(args["item"]),)).fetchone()

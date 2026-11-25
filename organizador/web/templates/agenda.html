@@ -14,7 +14,7 @@
     <label>Data <input type="date" name="data" value="{{ default_day }}" required></label>
     <label>Hora <input type="time" name="hora" value="09:00" required></label>
     <label>Repetir
-      <select name="repetir">{% for key, label in units.items() %}<option value="{{ key }}">{{ 'Não repete' if key == 'none' else 'A cada N ' ~ label }}</option>{% endfor %}</select>
+      <select name="repetir">{% for key, label in units.items() %}<option value="{{ key }}">{{ 'Não repete' if key == 'none' else ('Todo mês no dia da data (a cada N meses)' if key == 'month' else 'A cada N ' ~ label) }}</option>{% endfor %}</select>
     </label>
     <label>N <input type="number" name="a_cada" value="1" min="1" max="1000"></label>
     <label>Valor (contas) <input name="valor" inputmode="decimal" placeholder="230,00"></label>
@@ -46,7 +46,7 @@
       <td><span class="tag {{ i.kind }}">{{ kinds[i.kind] }}</span></td>
       <td>{{ i.title }}</td>
       <td class="mono">{{ to_local(i.due_at).strftime('%d/%m/%Y %H:%M') if i.due_at else 'terminou' }}</td>
-      <td>{{ 'não' if i.rec_unit == 'none' else 'a cada ' ~ i.rec_every ~ ' ' ~ units[i.rec_unit] }}</td>
+      <td>{{ repeat_text(i.rec_unit, i.rec_every, i.rec_anchor_day) }}</td>
       <td class="mono">{{ brl(i.amount_cents) }}</td>
       <td>{{ i.source }}</td>
       <td>

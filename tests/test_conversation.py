@@ -131,6 +131,13 @@ class ClaudeLoopTest(unittest.TestCase):
         logged = self.conn.execute("SELECT role FROM chat_log ORDER BY id").fetchall()
         self.assertEqual([r["role"] for r in logged], ["user", "bot"])
 
+    def test_create_fixed_day_bill_reports_real_first_date(self):
+        result = assistant.run_tool(self.conn, "criar_lembrete", {
+            "tipo": "conta", "titulo": "Água", "data": "2026-11-10", "hora": "09:00",
+            "repetir": "month", "a_cada": 1, "valor_centavos": 0, "observacao": "",
+        }, NOW)
+        self.assertEqual((result["primeira_vez"], result["repete"]), ("10/12/2026 09:00", "todo dia 10"))
+
     def test_create_reminder_validates_and_reports_error(self):
         fake = FakeClaude([
             SimpleNamespace(stop_reason="tool_use", content=[block("tool_use", id="t1", name="criar_lembrete", input={

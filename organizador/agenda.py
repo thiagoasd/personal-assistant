@@ -75,6 +75,21 @@ def next_due(local: datetime, unit: str, every: int, anchor_day: int | None = No
     raise AgendaError(f"Repetição desconhecida: {unit}")
 
 
+def repeat_text(unit: str, every: int, anchor_day: int | None = None) -> str:
+    """"todo dia 10", "a cada 2 meses no dia 10", "a cada 8 hora(s)", "não"."""
+    if unit == "none":
+        return "não"
+    if unit == "month" and anchor_day:
+        return f"todo dia {anchor_day}" if every == 1 else f"a cada {every} meses, no dia {anchor_day}"
+    if unit == "day" and every == 1:
+        return "todo dia"
+    if unit == "week" and every == 1:
+        return "toda semana"
+    if unit == "year" and every == 1:
+        return "todo ano"
+    return f"a cada {every} {UNITS[unit]}"
+
+
 def to_local(stamp: str) -> datetime:
     return parse_iso(stamp).astimezone(TZ)
 
@@ -91,7 +106,10 @@ def create_item(
     notes: str = "",
     rhythm: Rhythm | None = None,
     source: str = "painel",
+    now: datetime | None = None,
 ) -> int:
+    """Cria um item. Com `now`, um item que repete e cuja data já passou começa na próxima
+    repetição (ex.: "todo dia 10" cadastrado no dia 25 começa no dia 10 do mês seguinte)."""
     if kind not in KINDS:
         raise AgendaError("Tipo inválido.")
     if rec_unit not in UNITS:
@@ -106,13 +124,16 @@ def create_item(
     if due_local.tzinfo is None:
         due_local = due_local.replace(tzinfo=TZ)
     rhythm = rhythm or DEFAULT_RHYTHM[kind]
+    anchor = due_local.astimezone(TZ).day if rec_unit in ("month", "year") else None
+    if now is not None:
+        while rec_unit != "none" and due_local < now:
+            due_local = next_due(due_local.astimezone(TZ), rec_unit, rec_every, anchor)
     cursor = conn.execute(
         "INSERT INTO items (kind, title, notes, amount_cents, due_at, rec_unit, rec_every, rec_anchor_day, "
         "remind_before_min, nag_every_min, max_reminders, source, created_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (kind, title[:200], notes.strip()[:1000], amount_cents, iso(due_local), rec_unit, rec_every,
-         due_local.astimezone(TZ).day if rec_unit in ("month", "year") else None,
-         max(0, rhythm.remind_before_min), max(0, rhythm.nag_every_min),
+         anchor, max(0, rhythm.remind_before_min), max(0, rhythm.nag_every_min),
          max(1, rhythm.max_reminders), source, utcnow()),
     )
     conn.commit()

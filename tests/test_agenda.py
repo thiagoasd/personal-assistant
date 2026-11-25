@@ -43,6 +43,26 @@ class MaterializeTest(unittest.TestCase):
         occ = agenda.pending(self.conn)[0]
         self.assertEqual(agenda.to_local(occ["due_at"]), at(5, 8))
 
+    def test_fixed_day_already_passed_starts_next_month(self):
+        item = agenda.create_item(self.conn, kind="conta", title="Água", due_local=at(10),
+                                  rec_unit="month", now=at(25, 10))
+        row = self.conn.execute("SELECT * FROM items WHERE id = ?", (item,)).fetchone()
+        self.assertEqual(agenda.to_local(row["due_at"]), at(10, month=12))
+        self.assertEqual(agenda.materialize(self.conn, at(25, 10)), 0)  # nada de aviso "vencido"
+        self.assertEqual(agenda.repeat_text(row["rec_unit"], row["rec_every"], row["rec_anchor_day"]), "todo dia 10")
+
+    def test_day_31_created_late_keeps_anchor(self):
+        item = agenda.create_item(self.conn, kind="conta", title="Aluguel", due_local=at(31, month=1),
+                                  rec_unit="month", now=at(5, month=2))
+        row = self.conn.execute("SELECT * FROM items WHERE id = ?", (item,)).fetchone()
+        self.assertEqual(agenda.to_local(row["due_at"]).day, 28)
+        self.assertEqual(row["rec_anchor_day"], 31)
+
+    def test_repeat_text(self):
+        self.assertEqual(agenda.repeat_text("none", 1), "não")
+        self.assertEqual(agenda.repeat_text("month", 2, 5), "a cada 2 meses, no dia 5")
+        self.assertEqual(agenda.repeat_text("hour", 8), "a cada 8 hora(s)")
+
     def test_single_item_ends(self):
         item = agenda.create_item(self.conn, kind="compromisso", title="Dentista", due_local=at(3, 15))
         agenda.materialize(self.conn, at(3, 14))
