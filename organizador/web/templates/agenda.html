@@ -26,7 +26,7 @@
         <ul class="cal-entries">
           {% for e in day.entries %}
           <li class="cal-entry {{ e.kind }} {{ e.status }}" title="{{ e.time }} {{ e.title }}{% if e.amount %} · {{ brl(e.amount) }}{% endif %} · {{ status_label[e.status] }}">
-            <span class="cal-dot" aria-hidden="true"></span><span class="cal-text"><span class="mono">{{ e.time }}</span> {{ e.title }}</span>
+            <span class="cal-dot" aria-hidden="true"></span><a class="cal-text" href="{{ url_for('agenda_edit', item_id=e.item) }}"><span class="mono">{{ e.time }}</span> {{ e.title }}</a>
           </li>
           {% endfor %}
         </ul>
@@ -47,7 +47,7 @@
     {% set ns = namespace(any=false) %}
     {% for week in weeks %}{% for day in week if day.in_month and day.entries %}{% set ns.any = true %}
     <li><strong class="mono">{{ day.date.strftime('%d/%m') }}</strong>
-      {% for e in day.entries %}<div class="cal-entry {{ e.kind }} {{ e.status }}"><span class="cal-dot" aria-hidden="true"></span><span class="mono">{{ e.time }}</span> {{ e.title }}{% if e.amount %} · {{ brl(e.amount) }}{% endif %} <span class="muted small">{{ status_label[e.status] }}</span></div>{% endfor %}
+      {% for e in day.entries %}<div class="cal-entry {{ e.kind }} {{ e.status }}"><span class="cal-dot" aria-hidden="true"></span><span class="mono">{{ e.time }}</span> <a href="{{ url_for('agenda_edit', item_id=e.item) }}">{{ e.title }}</a>{% if e.amount %} · {{ brl(e.amount) }}{% endif %} <span class="muted small">{{ status_label[e.status] }}</span></div>{% endfor %}
     </li>
     {% endfor %}{% endfor %}
     {% if not ns.any %}<li class="muted">Nada neste mês.</li>{% endif %}
@@ -58,33 +58,7 @@
 
 <section class="card" id="novo">
   <h2>Novo lembrete</h2>
-  <form method="post" action="{{ url_for('agenda_new') }}" class="form-grid">
-    <input type="hidden" name="_csrf" value="{{ csrf }}">
-    <label>Tipo
-      <select name="tipo">{% for key, label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
-    </label>
-    <label class="wide">Nome <input name="titulo" required maxlength="200" placeholder="Conta de luz, Losartana 50 mg, Dentista…"></label>
-    <label>Data <input type="date" name="data" value="{{ default_day }}" required></label>
-    <label>Hora <input type="time" name="hora" value="09:00" required></label>
-    <label>Repetir
-      <select name="repetir">{% for key, label in units.items() %}<option value="{{ key }}">{{ 'Não repete' if key == 'none' else ('Todo mês no dia da data (a cada N meses)' if key == 'month' else 'A cada N ' ~ label) }}</option>{% endfor %}</select>
-    </label>
-    <label>N <input type="number" name="a_cada" value="1" min="1" max="1000"></label>
-    <label>Valor (contas) <input name="valor" inputmode="decimal" placeholder="230,00"></label>
-    <label class="wide">Observação <input name="obs" maxlength="1000" placeholder="Aparece no aviso"></label>
-    <details class="wide">
-      <summary>Ritmo dos avisos (vazio = padrão do tipo)</summary>
-      <div class="form-grid">
-        <label>Avisar antes (min) <input type="number" name="antecedencia" min="0"></label>
-        <label>Insistir a cada (min, 0 = não) <input type="number" name="insistir" min="0"></label>
-        <label>Máximo de avisos <input type="number" name="max_avisos" min="1"></label>
-      </div>
-      <p class="muted small">Padrões:
-        {% for key, r in rhythms.items() %}{{ kinds[key] }}: {{ r.remind_before_min }} min antes, insiste a cada {{ r.nag_every_min }} min, até {{ r.max_reminders }} aviso(s){% if not loop.last %} · {% endif %}{% endfor %}.
-        Insistências não saem entre 22h e 7h.</p>
-    </details>
-    <button class="primary">Criar</button>
-  </form>
+  {% with action=url_for('agenda_new'), submit='Criar', item=None, due=None %}{% include "_item_form.html" %}{% endwith %}
 </section>
 
 <section class="card">
@@ -97,7 +71,7 @@
     <tr class="{{ '' if i.active else 'off' }}">
       <td class="mono">{{ i.id }}</td>
       <td><span class="tag {{ i.kind }}">{{ kinds[i.kind] }}</span></td>
-      <td>{{ i.title }}</td>
+      <td><a href="{{ url_for('agenda_edit', item_id=i.id) }}">{{ i.title }}</a></td>
       <td class="mono">{{ to_local(i.due_at).strftime('%d/%m/%Y %H:%M') if i.due_at else 'terminou' }}</td>
       <td>{{ repeat_text(i.rec_unit, i.rec_every, i.rec_anchor_day) }}</td>
       <td class="mono">{{ brl(i.amount_cents) }}</td>
@@ -106,6 +80,7 @@
         <form method="post" action="{{ url_for('agenda_toggle', item_id=i.id) }}">
           <input type="hidden" name="_csrf" value="{{ csrf }}">
           <input type="hidden" name="ativo" value="{{ '0' if i.active else '1' }}">
+          <a class="button" href="{{ url_for('agenda_edit', item_id=i.id) }}">Editar</a>
           <button>{{ 'Desativar' if i.active else 'Reativar' }}</button>
         </form>
       </td>

@@ -205,38 +205,62 @@ def create_app(config: Config) -> Flask:
             this_month=now.strftime("%Y-%m"),
         )
 
-    @app.post("/agenda/novo")
-    def agenda_new():
+    def item_form() -> dict:
+        """Lê o formulário de lembrete (criar ou editar). Erro vira AgendaError/ValueError."""
         form = request.form
         try:
             due = datetime.strptime(f"{form.get('data', '')} {form.get('hora', '')}", "%Y-%m-%d %H:%M")
-        except ValueError:
-            flash("Data ou hora inválida.", "error")
-            return redirect(url_for("agenda_page"))
+        except ValueError as exc:
+            raise agenda.AgendaError("Data ou hora inválida.") from exc
         kind = form.get("tipo", "")
+        base = agenda.DEFAULT_RHYTHM.get(kind)
+        if base is None:
+            raise agenda.AgendaError("Tipo inválido.")
+
+        def minutes(name, default):
+            raw = form.get(name, "").strip()
+            return int(raw) if raw else default
+
+        return dict(
+            kind=kind, title=form.get("titulo", ""), due_local=due.replace(tzinfo=TZ),
+            rec_unit=form.get("repetir", "none"), rec_every=int(form.get("a_cada") or 1),
+            amount_cents=parse_money(form.get("valor", "")), notes=form.get("obs", ""),
+            rhythm=agenda.Rhythm(minutes("antecedencia", base.remind_before_min),
+                                 minutes("insistir", base.nag_every_min),
+                                 minutes("max_avisos", base.max_reminders)),
+            now=datetime.now(TZ),
+        )
+
+    @app.post("/agenda/novo")
+    def agenda_new():
         try:
-            base = agenda.DEFAULT_RHYTHM.get(kind)
-            if base is None:
-                raise agenda.AgendaError("Tipo inválido.")
-
-            def minutes(name, default):
-                raw = form.get(name, "").strip()
-                return int(raw) if raw else default
-
-            rhythm = agenda.Rhythm(
-                minutes("antecedencia", base.remind_before_min),
-                minutes("insistir", base.nag_every_min),
-                minutes("max_avisos", base.max_reminders),
-            )
-            agenda.create_item(
-                get_db(), kind=kind, title=form.get("titulo", ""), due_local=due.replace(tzinfo=TZ),
-                rec_unit=form.get("repetir", "none"), rec_every=int(form.get("a_cada") or 1),
-                amount_cents=parse_money(form.get("valor", "")), notes=form.get("obs", ""), rhythm=rhythm,
-                now=datetime.now(TZ),
-            )
+            agenda.create_item(get_db(), **item_form())
             flash("Lembrete criado.", "ok")
         except (agenda.AgendaError, ValueError) as exc:
             flash(str(exc) or "Dados inválidos.", "error")
+        return redirect(url_for("agenda_page"))
+
+    @app.get("/agenda/<int:item_id>/editar")
+    def agenda_edit(item_id):
+        item = get_db().execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        if item is None:
+            abort(404)
+        due = agenda.to_local(item["due_at"]) if item["due_at"] else None
+        pending = get_db().execute(
+            "SELECT COUNT(*) FROM occurrences WHERE item_id = ? AND status = 'pendente'", (item_id,)
+        ).fetchone()[0]
+        return render_template("agenda_edit.html", item=item, due=due, pending=pending,
+                               rhythms=agenda.DEFAULT_RHYTHM)
+
+    @app.post("/agenda/<int:item_id>/editar")
+    def agenda_save(item_id):
+        try:
+            if not agenda.update_item(get_db(), item_id, **item_form()):
+                abort(404)
+        except (agenda.AgendaError, ValueError) as exc:
+            flash(str(exc) or "Dados inválidos.", "error")
+            return redirect(url_for("agenda_edit", item_id=item_id))
+        flash("Lembrete alterado.", "ok")
         return redirect(url_for("agenda_page"))
 
     @app.post("/agenda/<int:item_id>/ativo")

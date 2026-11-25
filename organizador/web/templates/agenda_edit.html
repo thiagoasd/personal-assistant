@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Editar {{ item.title }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('agenda_page') }}">‹ Agenda</a></p>
+<h1>Editar #{{ item.id }} · {{ item.title }}</h1>
+
+<section class="card">
+  {% if not item.due_at %}
+  <p class="notice small">Este lembrete tinha terminado. Ao salvar com uma data, ele volta a avisar.</p>
+  {% elif not item.active %}
+  <p class="notice small">Este lembrete está desativado. Salvar não o reativa; use “Reativar” na Agenda.</p>
+  {% endif %}
+  {% with action=url_for('agenda_save', item_id=item.id), submit='Salvar', default_day='' %}{% include "_item_form.html" %}{% endwith %}
+  <p class="muted small">
+    Se repete, a “Próxima vez” passa a ser o novo ponto de partida (em “todo mês”, o dia dela vira o dia fixo).
+    Data que já passou começa na próxima repetição.
+    {% if pending %}{{ pending }} aviso(s) já enviado(s) e pendente(s) continuam na tela Hoje, com o nome novo.{% endif %}
+  </p>
+</section>
+{% endblock %}

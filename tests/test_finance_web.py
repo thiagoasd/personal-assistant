@@ -89,6 +89,24 @@ class WebTest(unittest.TestCase):
         self.addCleanup(conn.close)
         self.assertEqual(conn.execute("SELECT amount_cents FROM items").fetchone()[0], 23000)
 
+    def test_edit_item(self):
+        csrf = self.login()
+        form = {"tipo": "conta", "titulo": "Luz", "data": "2099-12-10", "hora": "09:00",
+                "repetir": "month", "a_cada": "1", "valor": "1.230,50", "_csrf": csrf}
+        self.client.post("/agenda/novo", data=form)
+        page = self.client.get("/agenda/1/editar").get_data(as_text=True)
+        self.assertIn('value="Luz"', page)
+        self.assertIn('value="1.230,50"', page)
+        self.assertIn('value="2099-12-10"', page)
+        self.assertEqual(self.client.get("/agenda/99/editar").status_code, 404)
+        self.client.post("/agenda/1/editar", data={**form, "titulo": "Energia", "data": "2099-12-15", "valor": "250"})
+        bad = self.client.post("/agenda/1/editar", data={**form, "data": "x"})
+        self.assertIn("/agenda/1/editar", bad.headers["Location"])
+        conn = connect(self.db)
+        self.addCleanup(conn.close)
+        row = conn.execute("SELECT title, amount_cents, rec_anchor_day FROM items").fetchone()
+        self.assertEqual(tuple(row), ("Energia", 25000, 15))
+
     def test_webhook_filters_and_always_200(self):
         payload = {"event": "messages.upsert", "data": {"key": {"remoteJid": "5511987654321@s.whatsapp.net",
                    "fromMe": False, "id": "X"}, "message": {"conversation": "tomei"}}}

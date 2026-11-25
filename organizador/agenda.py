@@ -94,22 +94,9 @@ def to_local(stamp: str) -> datetime:
     return parse_iso(stamp).astimezone(TZ)
 
 
-def create_item(
-    conn: sqlite3.Connection,
-    *,
-    kind: str,
-    title: str,
-    due_local: datetime,
-    rec_unit: str = "none",
-    rec_every: int = 1,
-    amount_cents: int | None = None,
-    notes: str = "",
-    rhythm: Rhythm | None = None,
-    source: str = "painel",
-    now: datetime | None = None,
-) -> int:
-    """Cria um item. Com `now`, um item que repete e cuja data já passou começa na próxima
-    repetição (ex.: "todo dia 10" cadastrado no dia 25 começa no dia 10 do mês seguinte)."""
+def _item_values(kind, title, due_local, rec_unit, rec_every, amount_cents, notes, rhythm, now) -> dict:
+    """Valida os dados de um item e devolve as colunas. Com `now`, um item que repete e cuja data
+    já passou começa na próxima repetição ("todo dia 10" cadastrado no dia 25 começa no mês seguinte)."""
     if kind not in KINDS:
         raise AgendaError("Tipo inválido.")
     if rec_unit not in UNITS:
@@ -128,16 +115,65 @@ def create_item(
     if now is not None:
         while rec_unit != "none" and due_local < now:
             due_local = next_due(due_local.astimezone(TZ), rec_unit, rec_every, anchor)
+    return {
+        "kind": kind, "title": title[:200], "notes": notes.strip()[:1000], "amount_cents": amount_cents,
+        "due_at": iso(due_local), "rec_unit": rec_unit, "rec_every": rec_every, "rec_anchor_day": anchor,
+        "remind_before_min": max(0, rhythm.remind_before_min), "nag_every_min": max(0, rhythm.nag_every_min),
+        "max_reminders": max(1, rhythm.max_reminders),
+    }
+
+
+def create_item(
+    conn: sqlite3.Connection,
+    *,
+    kind: str,
+    title: str,
+    due_local: datetime,
+    rec_unit: str = "none",
+    rec_every: int = 1,
+    amount_cents: int | None = None,
+    notes: str = "",
+    rhythm: Rhythm | None = None,
+    source: str = "painel",
+    now: datetime | None = None,
+) -> int:
+    values = _item_values(kind, title, due_local, rec_unit, rec_every, amount_cents, notes, rhythm, now)
+    values.update(source=source, created_at=utcnow())
     cursor = conn.execute(
-        "INSERT INTO items (kind, title, notes, amount_cents, due_at, rec_unit, rec_every, rec_anchor_day, "
-        "remind_before_min, nag_every_min, max_reminders, source, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (kind, title[:200], notes.strip()[:1000], amount_cents, iso(due_local), rec_unit, rec_every,
-         anchor, max(0, rhythm.remind_before_min), max(0, rhythm.nag_every_min),
-         max(1, rhythm.max_reminders), source, utcnow()),
+        f"INSERT INTO items ({', '.join(values)}) VALUES ({', '.join('?' * len(values))})", list(values.values())
     )
     conn.commit()
     return cursor.lastrowid
+
+
+def update_item(
+    conn: sqlite3.Connection,
+    item_id: int,
+    *,
+    kind: str,
+    title: str,
+    due_local: datetime,
+    rec_unit: str = "none",
+    rec_every: int = 1,
+    amount_cents: int | None = None,
+    notes: str = "",
+    rhythm: Rhythm | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Troca os dados de um item. Avisos já pendentes continuam como estão (o nome novo aparece
+    neles). Um item que tinha terminado volta a valer com a data nova; um desativado continua
+    desativado."""
+    values = _item_values(kind, title, due_local, rec_unit, rec_every, amount_cents, notes, rhythm, now)
+    row = conn.execute("SELECT due_at, active FROM items WHERE id = ?", (item_id,)).fetchone()
+    if row is None:
+        return False
+    if row["due_at"] is None:
+        values["active"] = 1
+    conn.execute(
+        f"UPDATE items SET {', '.join(f'{k} = ?' for k in values)} WHERE id = ?", [*values.values(), item_id]
+    )
+    conn.commit()
+    return True
 
 
 def set_active(conn: sqlite3.Connection, item_id: int, active: bool) -> bool:

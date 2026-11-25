@@ -84,6 +84,29 @@ class MaterializeTest(unittest.TestCase):
         self.assertEqual(entries(dec), {(10, 12, "Água", "previsto")})
         self.assertIn((10, 3, "Água", "previsto"), entries(agenda.month_calendar(self.conn, 2027, 3, now)))
 
+    def test_update_item_moves_fixed_day_and_keeps_pending(self):
+        item = agenda.create_item(self.conn, kind="conta", title="Agua", due_local=at(10), rec_unit="month",
+                                  amount_cents=8000)
+        agenda.materialize(self.conn, at(9, 9))  # aviso de 10/11 pendente; item vai para 10/12
+        self.assertTrue(agenda.update_item(self.conn, item, kind="conta", title="Água", due_local=at(15),
+                                           rec_unit="month", amount_cents=9000, now=at(25)))
+        row = self.conn.execute("SELECT * FROM items WHERE id = ?", (item,)).fetchone()
+        self.assertEqual(agenda.to_local(row["due_at"]), at(15, month=12))  # 15/11 já passou
+        self.assertEqual((row["rec_anchor_day"], row["amount_cents"]), (15, 9000))
+        self.assertEqual([o["title"] for o in agenda.pending(self.conn)], ["Água"])
+        self.assertFalse(agenda.update_item(self.conn, 999, kind="conta", title="X", due_local=at(1)))
+
+    def test_update_reactivates_finished_but_not_disabled(self):
+        done = agenda.create_item(self.conn, kind="compromisso", title="Dentista", due_local=at(3, 15))
+        agenda.materialize(self.conn, at(3, 14))
+        off = agenda.create_item(self.conn, kind="tarefa", title="Regar", due_local=at(30), rec_unit="day")
+        agenda.set_active(self.conn, off, False)
+        for item, title in ((done, "Dentista"), (off, "Regar")):
+            agenda.update_item(self.conn, item, kind="tarefa" if item == off else "compromisso",
+                               title=title, due_local=at(30, 10), now=at(25))
+        active = dict(self.conn.execute("SELECT id, active FROM items").fetchall())
+        self.assertEqual((active[done], active[off]), (1, 0))
+
     def test_single_item_ends(self):
         item = agenda.create_item(self.conn, kind="compromisso", title="Dentista", due_local=at(3, 15))
         agenda.materialize(self.conn, at(3, 14))
