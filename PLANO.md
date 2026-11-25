@@ -22,9 +22,12 @@ painel próprios. Não lê nem escreve nada dos sistemas do Empório.
   sistema da empresa.
 - **Conta Pluggy nova**, com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` próprios. Só leitura:
   nunca inicia pagamento nem transferência.
-- **WhatsApp pela mesma instância Evolution da loja**, conversando no privado com o número da
-  loja. O bot só aceita mensagem **privada** vinda do seu número (`EVOLUTION_TO`). Mensagem de
-  qualquer outra pessoa ou de grupo é descartada **sem ser gravada**.
+- **WhatsApp pela mesma instância Evolution da loja.** `EVOLUTION_TO` define onde se conversa:
+  - **id de um grupo** (`...@g.us`, modo escolhido): avisos e conversa nesse grupo; vale a
+    mensagem de **qualquer participante**, então o grupo deve ter só você e o número da loja;
+  - **seu número**: só a conversa privada com você.
+  Qualquer outra conversa ou grupo é descartado **sem ser gravado**. O log diz o motivo de cada
+  descarte (sem números de telefone nem texto) e, para grupos, o id do grupo.
 - **Conversa com Claude** (`claude-haiku-5-5` por padrão, configurável em `CLAUDE_MODEL`). A IA
   só tem ferramentas sobre o banco local: listar, marcar feito, adiar, pular, criar lembrete,
   desativar lembrete (reversível no painel) e resumir gastos. Não apaga nada e não mexe em
@@ -89,7 +92,7 @@ painel próprios. Não lê nem escreve nada dos sistemas do Empório.
 | `APP_PASSWORD`, `SECRET_KEY`, `SECURE_COOKIES` | login do painel (sem senha, só sobe em 127.0.0.1) |
 | `NOTIFIERS` | `console` (local) ou `evolution` |
 | `EVOLUTION_URL`, `EVOLUTION_APIKEY`, `EVOLUTION_INSTANCE` | instância da loja |
-| `EVOLUTION_TO` | **seu** número (destino dos avisos e único remetente aceito) |
+| `EVOLUTION_TO` | id do grupo (`...@g.us`) ou seu número: destino dos avisos e única conversa aceita |
 | `WEBHOOK_SECRET` | segredo no caminho do webhook (`/webhook/evolution/<segredo>`) |
 | `ANTHROPIC_API_KEY`, `CLAUDE_MODEL` | conversa com Claude |
 | `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` | conta Pluggy nova |

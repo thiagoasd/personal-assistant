@@ -1,7 +1,10 @@
 """Recebimento de mensagens pelo webhook da Evolution API.
 
-O número da loja recebe mensagens de clientes e de grupos. Daqui só passa mensagem de texto,
-em conversa privada, enviada pelo dono (`EVOLUTION_TO`). O resto é descartado sem ser gravado.
+O número da loja recebe mensagens de clientes e de grupos. Daqui só passa mensagem de texto de
+`EVOLUTION_TO`, que pode ser:
+- o número do dono: vale só a conversa privada com ele;
+- o id de um grupo (`...@g.us`): vale só esse grupo, de qualquer participante menos o próprio bot.
+O resto é descartado sem ser gravado.
 """
 import re
 import sqlite3
@@ -74,19 +77,29 @@ def owner_messages(payload: dict, owner: str, discarded: list[str] | None = None
             note("enviada pelo próprio número da instância")
             continue
         jid = str(key.get("remoteJid") or "")
-        if jid.endswith("@g.us") or jid.endswith("@broadcast") or jid.endswith("@newsletter"):
-            note("grupo ou lista")
+        if owner.endswith("@g.us"):
+            # Modo grupo: só vale o grupo configurado, de qualquer participante (menos o próprio bot).
+            if jid != owner:
+                note(f"outro grupo ou conversa (id: {jid})" if jid.endswith("@g.us")
+                     else "conversa fora do grupo configurado")
+                continue
+        elif jid.endswith("@g.us"):
+            note(f"grupo (id do grupo: {jid})")
             continue
-        # Com o identificador @lid, o número real vem em remoteJidAlt/senderPn.
-        candidates = [jid, key.get("remoteJidAlt"), key.get("senderPn"), entry.get("senderPn")]
-        phones = [c for c in candidates if c and "@lid" not in str(c)]
-        if not phones:
-            fields = ", ".join(sorted(k for k in key if k not in ("id", "fromMe"))) or "nenhum"
-            note(f"identificador @lid sem número de telefone (campos em key: {fields})")
+        if jid.endswith("@broadcast") or jid.endswith("@newsletter"):
+            note("lista ou canal")
             continue
-        if not any(same_phone(c, owner) for c in phones):
-            note("outro número (cliente ou EVOLUTION_TO diferente)")
-            continue
+        if not owner.endswith("@g.us"):
+            # Com o identificador @lid, o número real vem em remoteJidAlt/senderPn.
+            candidates = [jid, key.get("remoteJidAlt"), key.get("senderPn"), entry.get("senderPn")]
+            phones = [c for c in candidates if c and "@lid" not in str(c)]
+            if not phones:
+                fields = ", ".join(sorted(k for k in key if k not in ("id", "fromMe"))) or "nenhum"
+                note(f"identificador @lid sem número de telefone (campos em key: {fields})")
+                continue
+            if not any(same_phone(c, owner) for c in phones):
+                note("outro número (cliente ou EVOLUTION_TO diferente)")
+                continue
         text = _text(entry.get("message") or {}).strip()[:2000]
         message_id = str(key.get("id") or "")
         ref = _quoted_ref(entry)

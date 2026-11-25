@@ -30,7 +30,7 @@ Offline: sem rede, com cliente falso no lugar do Claude.
 ## Produção (Easypanel)
 
 - Docker, porta 8000, **volume em `/app/data`**.
-- Variáveis em `.env.example`. `EVOLUTION_TO` é o **seu** número.
+- Variáveis em `.env.example`. `EVOLUTION_TO` é o id do grupo da conversa (`...@g.us`) ou o seu número.
 - Webhook da Evolution (instância da loja), evento `MESSAGES_UPSERT`, apontando para
   `https://<domínio>/webhook/evolution/<WEBHOOK_SECRET>`. **Antes, confira se a instância já tem
   um webhook**: a Evolution aceita um só por instância.

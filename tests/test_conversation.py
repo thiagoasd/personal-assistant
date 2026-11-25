@@ -37,7 +37,6 @@ class WhatsAppParseTest(unittest.TestCase):
     def test_discard_reasons_without_numbers(self):
         cases = [
             (upsert("5511900000000@s.whatsapp.net", "oi"), "outro número"),
-            (upsert("1203630@g.us", "oi"), "grupo"),
             (upsert(f"{OWNER}@s.whatsapp.net", "oi", from_me=True), "próprio número"),
             (upsert("123456789@lid", "oi", participant="987@lid"), "campos em key: participant, remoteJid"),
             (upsert(f"{OWNER}@s.whatsapp.net", ""), "sem texto"),
@@ -48,6 +47,25 @@ class WhatsAppParseTest(unittest.TestCase):
             self.assertEqual(len(reasons), 1, expected)
             self.assertIn(expected, reasons[0])
             self.assertNotRegex(reasons[0], r"\d{3}")
+
+    def test_group_id_in_reason_to_configure(self):
+        reasons = []
+        whatsapp.owner_messages(upsert("1203630@g.us", "oi"), OWNER, reasons)
+        self.assertEqual(reasons, ["grupo (id do grupo: 1203630@g.us)"])
+
+
+class GroupModeTest(unittest.TestCase):
+    GROUP = "120363000000000001@g.us"
+
+    def test_accepts_any_participant_in_configured_group(self):
+        payload = upsert(self.GROUP, "pendentes", participant="555@lid")
+        self.assertEqual(whatsapp.owner_messages(payload, self.GROUP), [("A1", "pendentes")])
+
+    def test_drops_bot_other_groups_and_private(self):
+        for payload in (upsert(self.GROUP, "oi", from_me=True),
+                        upsert("120363999@g.us", "oi"),
+                        upsert(f"{OWNER}@s.whatsapp.net", "oi")):
+            self.assertEqual(whatsapp.owner_messages(payload, self.GROUP), [])
 
 
 class SimpleCommandsTest(unittest.TestCase):
